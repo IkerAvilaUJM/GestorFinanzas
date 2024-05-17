@@ -4,6 +4,7 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from movements import *
+from time import sleep
 
 app = dash.Dash(__name__)
 
@@ -23,7 +24,7 @@ i = 0
 # Initialize global variables with initial values
 next_concepto = df["concepto"].iloc[i] if not df.empty else ""
 next_fecha = df["fecha valor"].iloc[i] if not df.empty else ""
-next_importe = df["importe"].iloc[i] if not df.empty else ""
+next_importe = float(df["importe"].iloc[i]) if not df.empty else ""
 
 # Load the finance tracker
 finance_tracker = FinanceTracker()
@@ -31,8 +32,26 @@ categories = finance_tracker.categories
 dropdown_options = [{'label': option.capitalize(), 'value': option.lower()} for option in categories]
 dropdown_options = sorted(dropdown_options, key=lambda x: x['label'])
 
-# initialize the figure plot-bar
-fig = px.bar(finance_tracker.total_expenses, x=finance_tracker.total_expenses.index, y=['total'], title='Expenses')
+# Initialize the plot for expenses in each categorie
+# Filter out rows where the total expense is zero
+non_zero_expenses = finance_tracker.total_expenses[finance_tracker.total_expenses['total'] != 0]
+# Plotly Express bar plot
+fig_categories = px.bar(non_zero_expenses, x=non_zero_expenses.index, y='total', title='Expenses with Non-Zero Values')
+
+# Initialize the plot with the sum of expenes and earnings
+fig_total = px.bar(x=["Total"], y=[finance_tracker.total], title="Total Gastos e Ingresos")
+# Get maximum and minimum y-value from fig_categories
+if fig_categories.data:
+    # Get maximum y-value from fig_categories
+    max_y = fig_categories.data[0].y.max()
+    min_y = fig_categories.data[0].y.min()
+else:
+    max_y = 0
+    min_y = 0
+# Set the layout of fig_total
+fig_total.update_layout(
+    yaxis=dict(range=[min_y, max_y], title='',),  # Set y-axis range to match fig_categories
+)
 
 
 
@@ -91,7 +110,17 @@ app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-s
 
     html.Br(),
 
-    dcc.Graph(id='month_graph', figure=fig)
+    html.Div([
+        # Left half containing dcc.Markdown components
+        html.Div([
+            dcc.Graph(id='categorie_graph', figure=fig_categories),
+        ], style={'flex': '8'}),  # Set the left half to take up 50% of the container width
+
+        # Right half containing the dcc.Dropdown
+        html.Div([
+            dcc.Graph(id='total_graph', figure=fig_total),
+           ], style={'flex': '2'})  # Set the right half to take up 50% of the container width
+    ], style={'display': 'flex', })  # Use flexbox to arrange the divs side by side
 
 ])
 
@@ -103,10 +132,8 @@ app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-s
 
 # Callback to handle adding a new movement when the button is clicked
 @app.callback(
-    Output(component_id='month_graph', component_property='figure'),
-    Output(component_id='concepto_text', component_property='children'),
-    Output(component_id='fecha_text', component_property='children'),
-    Output(component_id='importe_text', component_property='children'),
+    Output(component_id='categorie_graph', component_property='figure'),
+    Output(component_id='total_graph', component_property='figure'),
     [Input(component_id='button-add-movement', component_property='n_clicks')],
     [State(component_id='select_category', component_property='value')]
 )
@@ -122,17 +149,40 @@ def add_movement(n_clicks, selected_category):
     # Call the create_movement function with the appropriate arguments
     finance_tracker.add_movement(next_concepto, next_fecha, next_importe, selected_category)
 
-    # Update next_concepto, next_fecha, and next_importe to the next row in the DataFrame
+# Update next_concepto, next_fecha, and next_importe to the next row in the DataFrame
     i += 1
-    next_concepto = df["concepto"].iloc[i]
-    next_fecha = df["fecha valor"].iloc[i]
-    next_importe = df["importe"].iloc[i]
+    if i < len(df):
+        next_concepto = df["concepto"].iloc[i]
+        next_fecha = df["fecha valor"].iloc[i]
+        next_importe = float(df["importe"].iloc[i])
+    else:
+        # Handle end of DataFrame (reset to initial values or take appropriate action)
+        next_concepto = ""
+        next_fecha = ""
+        next_importe = 0.0
+
+    # Filter out rows where the total expense is zero
+    non_zero_expenses = finance_tracker.total_expenses[finance_tracker.total_expenses['total'] != 0]
 
     # Plotly Express bar plot
-    fig = px.bar(finance_tracker.total_expenses, x=finance_tracker.total_expenses.index, y=['total'], title='Expenses')
+    fig_categories = px.bar(non_zero_expenses, x=non_zero_expenses.index, y='total', title='Expenses with Non-Zero Values')
+    # Initialize the plot with the sum of expenes and earnings
+    fig_total = px.bar(x=["Total"], y=[finance_tracker.total], title="Total Gastos e Ingresos")
+    # Get maximum and minimum y-value from fig_categories
+    if fig_categories.data:
+    # Get maximum y-value from fig_categories
+        max_y = fig_categories.data[0].y.max()
+        min_y = fig_categories.data[0].y.min()
+    else:
+        max_y = 0
+        min_y = 0
+    # Set the layout of fig_total
+    fig_total.update_layout(
+        yaxis=dict(range=[min_y, max_y], title='',),  # Set y-axis range to match fig_categories
+    )
 
     # Return an empty figure for now
-    return fig
+    return fig_categories, fig_total
 
 @app.callback(
     Output(component_id='concepto_text', component_property='children'),
@@ -141,10 +191,11 @@ def add_movement(n_clicks, selected_category):
     [Input(component_id='button-add-movement', component_property='n_clicks')]
 )
 def update_displayed_values(n_clicks):
+    sleep(0.1) # not good practice, but otherwise the text sometimes doesn't update
     global next_concepto, next_fecha, next_importe, i  # declaring as global variables
 
     if not n_clicks:
-        return dash.no_update, dash.no_update, dash.no_update
+        return "Concepto: " + str(next_concepto), "Fecha: " + str(next_fecha), "Importe: " + str(next_importe)
 
     # Update the displayed values with the updated global variables
     concepto_text = f"Concepto: {next_concepto}"

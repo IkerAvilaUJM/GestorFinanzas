@@ -25,14 +25,16 @@ class FinanceTracker:
         # Convert categories to list and sort
         self.categories = sorted(self.categories)
         # Initialize DataFrame with categories and set index to "category"
-        self.total_expenses = pd.DataFrame(0, index=self.categories, columns=["total"])
+        self.total_expenses = pd.DataFrame(0.0, index=self.categories, columns=["total"])
+        self.total = 0.0
 
     def classify_concept(self, concept, category):
         self.category_map[concept] = category
 
     def add_movement(self, concept, date, amount, category):
         movement = Movement(concept, date, amount, category)
-        self.total_expenses.at[category, 'total'] += amount
+        self.total_expenses.at[category, 'total'] += float(amount)
+        self.total += float(amount)
         self.category_map[concept] = category
         return movement
             
