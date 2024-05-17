@@ -1,6 +1,7 @@
 from datetime import datetime
 from time import sleep
 import json
+import pandas as pd
 
 class Movement:
     def __init__(self, concept, date, amount, category=None):
@@ -13,39 +14,33 @@ class Movement:
     def __str__(self):
         return f"{self.date} - {self.concept}: ${self.amount:.2f}"
     
+import pandas as pd
+
 class FinanceTracker:
     def __init__(self):
         self.category_map = {}  # Dictionary to store concept-category mappings
-        self.categories = {"alquiler", "suscripciones", "compras", "deporte", "sueldo", "beca"}
-        self.total_expenses = {}  # Dictionary to store total expenses per category
-        for i in self.categories:
-            self.total_expenses[i] = 0
+        self.categories = ["alquiler", "suscripciones", "ropa", "deporte", "sueldo", "beca", "comer fuera",
+                           "supermercado", "transporte", "ocio", "salud", "ropa", "mascotas", "paga",
+                           "regalos", "viajes", "bares", "fiesta", "internet", "tecnologia", "otros"]
+        # Convert categories to list and sort
+        self.categories = sorted(self.categories)
+        # Initialize DataFrame with categories and set index to "category"
+        self.total_expenses = pd.DataFrame(0, index=self.categories, columns=["total"])
 
     def classify_concept(self, concept, category):
         self.category_map[concept] = category
 
-    def create_movement(self, concept, date, amount):
-        # Check if concept is already classified
-        if concept in self.category_map:
-            category = self.category_map[concept]
-        else:
-            # Ask user for category if concept not previously classified
-            while True:
-                new_category = input(f"'{concept}' is not classified. Please select a category:\n"
-                     f"Categories: {', '.join(sorted(self.categories))}\n"
-                     "Category name (or type a new category): ").strip()
-                if new_category in self.categories:
-                    break
-                else:
-                    self.categories.add(new_category)
-                    self.total_expenses[new_category] = 0
-                    break
-            # store the category for the new concept
-            self.classify_concept(concept, new_category)
-            category = new_category
-        self.total_expenses[category] += amount
-        return Movement(concept, date, amount, category)
+    def add_movement(self, concept, date, amount, category):
+        movement = Movement(concept, date, amount, category)
+        self.total_expenses.at[category, 'total'] += amount
+        self.category_map[concept] = category
+        return movement
             
+    def get_category(self, movement):
+        if movement.concept in self.category_map:
+            return self.category_map[movement.concept]
+        else:
+            return None
             
     def save_category_map(self):
         with open("category_map.json", "w") as file:
@@ -56,5 +51,9 @@ class FinanceTracker:
         try:
             with open("category_map.json", "r") as file:
                 self.category_map = json.load(file)
+            for concept, category in self.category_map.items():
+                if category not in self.categories:
+                    self.categories.add(category)
+                    self.total_expenses[category] = 0
         except FileNotFoundError:
             pass
