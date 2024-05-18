@@ -1,64 +1,29 @@
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from FinanceTracker import *
-from time import sleep
+from FinanceTracker import FinanceTracker
+import base64
+import io
+import json
 
+# Initialize the Dash app
 app = dash.Dash(__name__)
 
-### ----------------------------------------- Load data ------------------------------------------ ###
-# Here load the data
-### ---------------------------------------------------------------------------------------------- ###
+# Initialize the FinanceTracker object and load the concept-to-category mapping
+tracker = FinanceTracker()
+try:
+    tracker.load_concept_to_category('concept_to_category.json')
+except FileNotFoundError:
+    pass
 
-
-# Load the data from the Excel file with the movements, this should be changed later select file by user
-file = "Movimientos Kutxabank/2023-04.xls"
-df = pd.read_excel(file, skiprows=6)
-df = df.dropna(how='all')
-column_names = ["concepto", "fecha valor", "importe"]
-df = df[column_names]
-
-i = 0
-# Initialize global variables with initial values
-next_concepto = df["concepto"].iloc[i] if not df.empty else ""
-next_fecha = df["fecha valor"].iloc[i] if not df.empty else ""
-next_importe = float(df["importe"].iloc[i]) if not df.empty else ""
-
-# Load the finance tracker
-finance_tracker = FinanceTracker()
-categories = finance_tracker.categories
-dropdown_options = [{'label': option.capitalize(), 'value': option.lower()} for option in categories]
-dropdown_options = sorted(dropdown_options, key=lambda x: x['label'])
-
-# Initialize the plot for expenses in each categorie
-# Filter out rows where the total expense is zero
-non_zero_expenses = finance_tracker.total_expenses[finance_tracker.total_expenses['total'] != 0]
-# Plotly Express bar plot
-fig_categories = px.bar(non_zero_expenses, x=non_zero_expenses.index, y='total', title='Expenses with Non-Zero Values')
-
-# Initialize the plot with the sum of expenes and earnings
-fig_total = px.bar(x=["Total"], y=[finance_tracker.total], title="Total Gastos e Ingresos")
-# Get maximum and minimum y-value from fig_categories
-if fig_categories.data:
-    # Get maximum y-value from fig_categories
-    max_y = fig_categories.data[0].y.max()
-    min_y = fig_categories.data[0].y.min()
-else:
-    max_y = 0
-    min_y = 0
-# Set the layout of fig_total
-fig_total.update_layout(
-    yaxis=dict(range=[min_y, max_y], title='',),  # Set y-axis range to match fig_categories
-)
-
-
-
-
-### ----------------------------------------- App layout ---------------------------------------- ###
-# The layout of the app is defined here, it is the structure of the web page
-### ---------------------------------------------------------------------------------------------- ###
+# Initialize the list of possible categories:
+categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio', 'Transporte', 
+              'Supermercado', 'Deportes', 'Beca', 'Paga', 'Regalos', 'Fiesta', 'Viaje', 'Bares',
+              'Café', 'Farmacia', 'Libros', 'Médico', 'Material', 'Peluquería', 'Teléfono',
+              'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones']
 
 # Path to the folder containing your local font files
 local_font_path = "fonts/"
@@ -76,137 +41,147 @@ body {{
 }}
 '''
 
-# Apply custom font CSS directly in the app layout
 app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
-
-    html.H1("Gestor de finanzas personales", style={'text-align': 'center'}),
-
+    html.H1("Gestor de Finanzas Personales", style={'textAlign': 'center'}),
+    
+    dcc.Upload(
+        id='upload-data',
+        children=html.Div([
+            'Drag and Drop or ',
+            html.A('Select a Kutxabank Excel File')
+        ]),
+        style={
+            'width': '50%',
+            'height': '60px',
+            'lineHeight': '60px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': 'auto'
+        },
+        multiple=False
+    ),
+    
+    html.Div(id='file-upload-status', style={'textAlign': 'center'}),
+    
+    html.Div(id='none-category-box', style={
+        'width': '50%',
+        'margin': 'auto',
+        'border': '1px solid black',
+        'padding': '20px',
+        'borderRadius': '5px'
+    }),
+    
+    dcc.Dropdown(  # Define the dropdown component
+        id='category-dropdown',  # Assign an ID
+        options=[{'label': c, 'value': c} for c in categories],
+        placeholder='Select a category'
+    ),
+    
+    html.Button('Update Category', id='update-category-button', style={'display': 'block', 'margin': 'auto'}),
+    
     html.Div([
-        # Left half containing dcc.Markdown components
-        html.Div([
-            dcc.Markdown(id='concepto_text', children="Concepto: "+str(next_concepto)),  # Placeholder for concepto text
-            dcc.Markdown(id='fecha_text', children="Fecha: "+str(next_fecha)),  # Placeholder for fecha text
-            dcc.Markdown(id='importe_text', children="Importe: "+str(next_importe)),  # Placeholder for importe text
-        ], style={'flex': '1'}),  # Set the left half to take up 50% of the container width
-
-        # Right half containing the dcc.Dropdown
-        html.Div([
-            dcc.Markdown('''
-                Escoge categoría para este movimiento:
-            '''),
-            dcc.Dropdown(
-                id="select_category",
-                options=dropdown_options,
-                multi=False,
-                value=2015,
-                style={'width': "100%"}
-            ),
-            html.Button('Añadir  Movimiento', id='button-add-movement'),
-        ], style={'flex': '1'})  # Set the right half to take up 50% of the container width
-    ], style={'display': 'flex', 
-              'border': '1px solid black', 'padding': '10px', 'margin': '10px',
-              'border-radius': '5px'})  # Use flexbox to arrange the divs side by side
-    ,
-
-    html.Br(),
-
-    html.Div([
-        # Left half containing dcc.Markdown components
-        html.Div([
-            dcc.Graph(id='categorie_graph', figure=fig_categories),
-        ], style={'flex': '8'}),  # Set the left half to take up 50% of the container width
-
-        # Right half containing the dcc.Dropdown
-        html.Div([
-            dcc.Graph(id='total_graph', figure=fig_total),
-           ], style={'flex': '2'})  # Set the right half to take up 50% of the container width
-    ], style={'display': 'flex', })  # Use flexbox to arrange the divs side by side
-
+        dcc.Graph(id='expenses-per-category', style={'width': '40%'}),
+        dcc.Graph(id='expenses-per-day', style={'width': '40%'}),
+        dcc.Graph(id='total-expenses-earnings', style={'width': '20%'})
+    ], style={'display': 'flex', 'justifyContent': 'space-around'})
 ])
 
 
-
-# ------------------------------------------------------------------------------
-# Button callback to add movement
-# ------------------------------------------------------------------------------
-
-# Callback to handle adding a new movement when the button is clicked
 @app.callback(
-    Output(component_id='categorie_graph', component_property='figure'),
-    Output(component_id='total_graph', component_property='figure'),
-    [Input(component_id='button-add-movement', component_property='n_clicks')],
-    [State(component_id='select_category', component_property='value')]
+    Output('file-upload-status', 'children'),
+    Output('none-category-box', 'children'),
+    Output('expenses-per-category', 'figure'),
+    Output('expenses-per-day', 'figure'),
+    Output('total-expenses-earnings', 'figure'),
+    Input('upload-data', 'contents'),
+    Input('update-category-button', 'n_clicks'),
+    State('upload-data', 'filename'),
+    State('category-dropdown', 'value'),
+    State('none-category-box', 'children')
 )
-def add_movement(n_clicks, selected_category):
-    global next_concepto, next_fecha, next_importe, i  # declaring as global variables
+def update_tracker(contents, n_clicks, filename, category, none_category_box):
+    ctx = dash.callback_context
+    triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Check which action has trigered the update method, choosing an excel, or updating a category
+    if triggered_id == 'upload-data' and contents is not None:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        with open(filename, "wb") as f:
+            f.write(decoded)
+        
+        tracker.fill_from_excel_kutxabank(filename)
+        file_status = "File uploaded and processed successfully"
 
-    if not n_clicks:
-        return dash.no_update
+    elif triggered_id == 'update-category-button' and category is not None:
+        # Accessing directly the nested Div and Dropdown components
+        none_category_text_children = none_category_box['props']['children']
+        if none_category_text_children:
+            # Extracting the concept from the first Div component
+            current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
+            tracker.update_category(current_concept, category)
+            file_status = "Category updated successfully"
+        else:
+            file_status = "No items with None category available."
 
-    if selected_category is None:
-        return dash.no_update
 
-    # Call the create_movement function with the appropriate arguments
-    finance_tracker.add_movement(next_concepto, next_fecha, next_importe, selected_category)
 
-# Update next_concepto, next_fecha, and next_importe to the next row in the DataFrame
-    i += 1
-    if i < len(df):
-        next_concepto = df["concepto"].iloc[i]
-        next_fecha = df["fecha valor"].iloc[i]
-        next_importe = float(df["importe"].iloc[i])
     else:
-        # Handle end of DataFrame (reset to initial values or take appropriate action)
-        next_concepto = ""
-        next_fecha = ""
-        next_importe = 0.0
-
-    # Filter out rows where the total expense is zero
-    non_zero_expenses = finance_tracker.total_expenses[finance_tracker.total_expenses['total'] != 0]
-
-    # Plotly Express bar plot
-    fig_categories = px.bar(non_zero_expenses, x=non_zero_expenses.index, y='total', title='Expenses with Non-Zero Values')
-    # Initialize the plot with the sum of expenes and earnings
-    fig_total = px.bar(x=["Total"], y=[finance_tracker.total], title="Total Gastos e Ingresos")
-    # Get maximum and minimum y-value from fig_categories
-    if fig_categories.data:
-    # Get maximum y-value from fig_categories
-        max_y = fig_categories.data[0].y.max()
-        min_y = fig_categories.data[0].y.min()
+        return "", "", {}, {}, {}
+    
+    # If after update there are concepts with None category, a new concept appears in the textbox
+    none_category_df = tracker.data[tracker.data["Categoria"].isna()]
+    if none_category_df.empty:
+        none_category_box = "No more items with None category."
     else:
-        max_y = 0
-        min_y = 0
-    # Set the layout of fig_total
-    fig_total.update_layout(
-        yaxis=dict(range=[min_y, max_y], title='',),  # Set y-axis range to match fig_categories
-    )
+        next_none_category = none_category_df.iloc[0]
+        none_category_box = html.Div([
+            html.Div(f"Concepto: {next_none_category['Concepto']}"),
+            html.Div(f"Fecha: {next_none_category['Fecha']}"),
+            html.Div(f"Importe: {next_none_category['Importe']}")
+        ])
+    
+    if not tracker.data.empty:
+        # Get data for category expenses
+        category_expenses = tracker.get_category_expenses().reset_index()
+        # Make negative values positive and create a new column for color
+        category_expenses['Positive_Total'] = category_expenses['Total'].abs()
+        # Create a new column to determine bar color
+        category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Total'].values]
+        # Create the bar plot
+        fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
+        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1)  # Adjust bargap and bargroupgap for thicker bars
+        # Center the category labels below the bars
+        fig_category.update_xaxes(tickmode='array', tickvals=list(range(len(category_expenses))), ticktext=category_expenses['Categoria'], tickangle=45, tickfont=dict(size=10))        
+        # Get data for daily expenses
+        daily_expenses = tracker.get_daily_expenses().reset_index()
+        fig_daily = px.line(daily_expenses, x='Fecha', y='Total', title='Expenses per Day')
+        
+        # Get total expenses and earnings
+        total_expenses, total_earnings = tracker.get_total_expenses_earnings()
+        
+        # Calculate total savings
+        total_savings = total_earnings + total_expenses
+        
+        # Create bar plot for expenses and earnings
+        fig_total = go.Figure()
+        fig_total.add_trace(go.Bar(x=['Expenses'], y=[-total_expenses], name='Expenses', marker_color='rgb(214, 39, 40)'))
+        fig_total.add_trace(go.Bar(x=['Earnings'], y=[total_earnings], name='Earnings', marker_color='rgb(31, 119, 180)'))
+        fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', 
+                                barmode='group', showlegend=False)
+        fig_total.update_xaxes(title='Type')
+        fig_total.update_yaxes(title='Amount')
 
-    # Return an empty figure for now
-    return fig_categories, fig_total
+    else:
+        # Default plots for empty data
+        fig_category = px.bar(title='Expenses per Category')
+        fig_daily = px.line(title='Expenses per Day')
+        fig_total = go.Figure()
+    
+    tracker.save_concept_to_category('concept_to_category.json')
+    return file_status, none_category_box, fig_category, fig_daily, fig_total
 
-@app.callback(
-    Output(component_id='concepto_text', component_property='children'),
-    Output(component_id='fecha_text', component_property='children'),
-    Output(component_id='importe_text', component_property='children'),
-    [Input(component_id='button-add-movement', component_property='n_clicks')]
-)
-def update_displayed_values(n_clicks):
-    sleep(0.1) # not good practice, but otherwise the text sometimes doesn't update
-    global next_concepto, next_fecha, next_importe, i  # declaring as global variables
-
-    if not n_clicks:
-        return "Concepto: " + str(next_concepto), "Fecha: " + str(next_fecha), "Importe: " + str(next_importe)
-
-    # Update the displayed values with the updated global variables
-    concepto_text = f"Concepto: {next_concepto}"
-    fecha_text = f"Fecha: {next_fecha}"
-    importe_text = f"Importe: {next_importe}"
-
-    return concepto_text, fecha_text, importe_text
-
-
-# ------------------------------------------------------------------------------
-# Run the app
-# ------------------------------------------------------------------------------
 if __name__ == '__main__':
     app.run_server(debug=True)

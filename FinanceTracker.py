@@ -32,8 +32,11 @@ class FinanceTracker:
         Initializes the FinanceTracker with an empty DataFrame.
         """
         self.data = pd.DataFrame(columns=["Concepto", "Categoria", "Importe", "Fecha"])
+        # Ensure 'Categoria' column has dtype 'object' to accommodate string values
+        self.data["Categoria"] = self.data["Categoria"].astype(object)
         self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
         self.concept_to_category = {}
+
 
     def save_tracker(self, filepath):
         """
@@ -54,6 +57,26 @@ class FinanceTracker:
         self.data = pd.read_json(filepath, orient="records")
         self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
         self._update_concept_to_category()
+
+    def save_concept_to_category(self, filepath):
+        """
+        Saves the concept to category mapping to a JSON file.
+        
+        Args:
+            filepath (str): The path to the file where the mapping should be saved.
+        """
+        with open(filepath, "w") as f:
+            json.dump(self.concept_to_category, f)
+    
+    def load_concept_to_category(self, filepath):
+        """
+        Loads the concept to category mapping from a JSON file.
+        
+        Args:
+            filepath (str): The path to the file from where the mapping should be loaded.
+        """
+        with open(filepath, "r") as f:
+            self.concept_to_category = json.load(f)
 
     def _update_concept_to_category(self):
         """
@@ -82,10 +105,16 @@ class FinanceTracker:
         df["Categoria"] = None
         # Assign the existing categories to new movements where applicable
         df["Categoria"] = df["Concepto"].map(self.concept_to_category)
-        # Append the data to the FinanceTracker's data
-        self.data = pd.concat([self.data, df], ignore_index=True)
+        
+        # Check if both DataFrames contain non-empty data
+        if not self.data.empty and not df.empty:
+            # Append the data to the FinanceTracker's data
+            self.data = pd.concat([self.data, df], ignore_index=True)
+        elif not df.empty:
+            self.data = df.copy()  # Replace the existing data with the new DataFrame
         # Update the concept to category mapping
         self._update_concept_to_category()
+
 
     def get_category_expenses(self):
         """
@@ -138,8 +167,14 @@ class FinanceTracker:
             concept (str): The concept to update.
             category (str): The new category for the concept.
         """
+        # Ensure that the category is a string
+        category = str(category)
         self.concept_to_category[concept] = category
-        self.data.loc[self.data["Concepto"] == concept, "Categoria"] = category
+        # Update the category in the DataFrame
+        self.data['Categoria'] = self.data['Categoria'].astype(object)
+        self.data.loc[self.data["Concepto"] == concept, "Categoria"] = str(category)
+        # print(category)
+
 
     def get_starting_date(self):
         """
@@ -158,6 +193,17 @@ class FinanceTracker:
             datetime.date: The newest date in the DataFrame.
         """
         return self.data["Fecha"].max()
+    
+    def get_total_expenses_earnings(self):
+        """
+        Returns the total expenses and earnings in the DataFrame.
+        
+        Returns:
+            tuple: A tuple containing the total expenses and earnings.
+        """
+        expenses = self.data[self.data["Importe"] < 0]["Importe"].sum()
+        earnings = self.data[self.data["Importe"] > 0]["Importe"].sum()
+        return expenses, earnings
 
     def __add__(self, other):
         """
