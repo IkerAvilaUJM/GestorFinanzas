@@ -10,15 +10,20 @@ class FinanceTracker:
     Attributes:
         data (pd.DataFrame): A DataFrame containing financial movements with columns:
                              "Concepto", "Categoria", "Importe", "Fecha".
+        concept_to_category (dict): A dictionary mapping concepts to categories.
 
     Methods:
         save_tracker(filepath): Saves the DataFrame to a JSON file.
         load_tracker(filepath): Loads the DataFrame from a JSON file.
+        _update_concept_to_category(): Updates the concept to category mapping based on the current data.
+        fill_from_excel_kutxabank(filepath): Fills the FinanceTracker data from an Excel file from Kutxabank.
         get_category_expenses(): Returns total amount for each category as a DataFrame.
         get_daily_expenses(exclude_categories=None): Returns total amount for each day as a DataFrame, with optional exclusion of categories.
         add_movement(concept, date, amount, category): Adds a movement to the DataFrame.
         get_starting_date(): Returns the oldest date in the DataFrame.
         get_end_date(): Returns the newest date in the DataFrame.
+        __add__(other): Combines two FinanceTracker objects by adding the rows of one DataFrame to the other.
+        __str__(): Returns a string representation of the FinanceTracker object.
         parse_date(date_str): Parses a date string to a datetime.date object.
     """
 
@@ -28,6 +33,7 @@ class FinanceTracker:
         """
         self.data = pd.DataFrame(columns=["Concepto", "Categoria", "Importe", "Fecha"])
         self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
+        self.concept_to_category = {}
 
     def save_tracker(self, filepath):
         """
@@ -47,6 +53,13 @@ class FinanceTracker:
         """
         self.data = pd.read_json(filepath, orient="records")
         self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
+        self._update_concept_to_category()
+
+    def _update_concept_to_category(self):
+        """
+        Updates the concept to category mapping based on the current data.
+        """
+        self.concept_to_category = self.data[self.data["Categoria"].notna()].set_index("Concepto")["Categoria"].to_dict()
 
     def fill_from_excel_kutxabank(self, filepath):
         """
@@ -67,8 +80,12 @@ class FinanceTracker:
         df["Fecha"] = pd.to_datetime(df["Fecha"], dayfirst=True).dt.date
         # Add a None category column
         df["Categoria"] = None
+        # Assign the existing categories to new movements where applicable
+        df["Categoria"] = df["Concepto"].map(self.concept_to_category)
         # Append the data to the FinanceTracker's data
         self.data = pd.concat([self.data, df], ignore_index=True)
+        # Update the concept to category mapping
+        self._update_concept_to_category()
 
     def get_category_expenses(self):
         """
@@ -105,7 +122,24 @@ class FinanceTracker:
             category (str): The category of the movement.
         """
         date = self.parse_date(date)
-        self.data = self.data.append({"Concepto": concept, "Fecha": date, "Importe": amount, "Categoria": category}, ignore_index=True)
+        if category is None and concept in self.concept_to_category:
+            category = self.concept_to_category[concept]
+        new_movement = pd.DataFrame([{"Concepto": concept, "Fecha": date, "Importe": amount, "Categoria": category}])
+        self.data = pd.concat([self.data, new_movement], ignore_index=True)
+        
+        # Update the concept to category mapping
+        self._update_concept_to_category()
+
+    def update_category(self, concept, category):
+        """
+        Updates the category of a concept in the DataFrame.
+        
+        Args:
+            concept (str): The concept to update.
+            category (str): The new category for the concept.
+        """
+        self.concept_to_category[concept] = category
+        self.data.loc[self.data["Concepto"] == concept, "Categoria"] = category
 
     def get_starting_date(self):
         """
@@ -137,6 +171,7 @@ class FinanceTracker:
         """
         combined = FinanceTracker()
         combined.data = pd.concat([self.data, other.data]).reset_index(drop=True)
+        combined._update_concept_to_category()
         return combined
 
     def __str__(self):
@@ -180,3 +215,5 @@ class FinanceTracker:
 # tracker.load_tracker("tracker.json")
 # print(tracker.get_category_expenses())
 # print(tracker.get_daily_expenses(exclude_categories=["Salario"]))
+# tracker.fill_from_excel_kutxabank("Movimientos Kutxabank/2023-04.xls")
+# print(tracker)

@@ -3,7 +3,7 @@ import plotly.express as px
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from movements import *
+from FinanceTracker import *
 from time import sleep
 
 app = dash.Dash(__name__)
