@@ -1,16 +1,70 @@
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import dash
+import dash_bootstrap_components as dbc
 from dash import dcc, html
+import plotly.express as px
+import pandas as pd
 from dash.dependencies import Input, Output, State
-from FinanceTracker import FinanceTracker
 import base64
 import io
 import json
+from FinanceTracker import FinanceTracker
+import plotly.graph_objects as go
+
+# Load the data for the example sidebar graphs
+df = pd.read_csv('https://raw.githubusercontent.com/Coding-with-Adam/Dash-by-Plotly/master/Bootstrap/Side-Bar/iranian_students.csv')
 
 # Initialize the Dash app
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True, title='Gestor Finanzas')
+
+
+# Styling the sidebar
+SIDEBAR_STYLE = {
+    "position": "fixed",
+    "top": 0,
+    "left": 0,
+    "bottom": 0,
+    "width": "16rem",
+    "padding": "2rem 1rem",
+    "background-color": "#f8f9fa",
+}
+
+# Padding for the page content
+CONTENT_STYLE = {
+    "margin-left": "18rem",
+    "margin-right": "2rem",
+    "padding": "2rem 1rem",
+}
+
+# Define the sidebar layout
+sidebar = html.Div(
+    [
+        html.H2("Sidebar", className="display-4"),
+        html.Hr(),
+        html.P(
+            "Navigation", className="lead"
+        ),
+        dbc.Nav(
+            [
+                dbc.NavLink("Home", href="/", active="exact"),
+                dbc.NavLink("Añadir Mes", href="/add-month", active="exact"),
+                dbc.NavLink("Page 1", href="/page-1", active="exact"),
+                dbc.NavLink("Page 2", href="/page-2", active="exact"),
+            ],
+            vertical=True,
+            pills=True,
+        ),
+    ],
+    style=SIDEBAR_STYLE,
+)
+
+# Define the content layout
+content = html.Div(id="page-content", children=[], style=CONTENT_STYLE)
+
+app.layout = html.Div([
+    dcc.Location(id="url"),
+    sidebar,
+    content
+])
 
 # Initialize the FinanceTracker object and load the concept-to-category mapping
 tracker = FinanceTracker()
@@ -19,29 +73,15 @@ try:
 except FileNotFoundError:
     pass
 
-# Initialize the list of possible categories:
+# Initialize the list of possible categories
 categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio', 'Transporte', 
               'Supermercado', 'Deportes', 'Beca', 'Paga', 'Regalos', 'Fiesta', 'Viaje', 'Bares',
               'Café', 'Farmacia', 'Libros', 'Médico', 'Material', 'Peluquería', 'Teléfono',
-              'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones']
+              'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones', 'Tecnología',
+              'Comision Banco']
 
-# Path to the folder containing your local font files
-local_font_path = "fonts/"
-
-# Define CSS for custom font
-custom_font_css = f'''
-@font-face {{
-    font-family: 'VarieraDemo';
-    src: url('/{local_font_path}VarieraDemoRegular.ttf') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-}}
-body {{
-    font-family: 'VarieraDemo', sans-serif;
-}}
-'''
-
-app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
+# Define the "añadir mes" layout
+add_month_layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
     html.H1("Gestor de Finanzas Personales", style={'textAlign': 'center'}),
     
     dcc.Upload(
@@ -73,8 +113,8 @@ app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-s
         'borderRadius': '5px'
     }),
     
-    dcc.Dropdown(  # Define the dropdown component
-        id='category-dropdown',  # Assign an ID
+    dcc.Dropdown(
+        id='category-dropdown',
         options=[{'label': c, 'value': c} for c in categories],
         placeholder='Select a category'
     ),
@@ -88,6 +128,35 @@ app.layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-s
     ], style={'display': 'flex', 'justifyContent': 'space-around'})
 ])
 
+@app.callback(
+    Output('page-content', 'children'),
+    Input('url', 'pathname')
+)
+def render_page_content(pathname):
+    if pathname == "/":
+        return [
+            html.H1('Home', style={'textAlign':'center'}),
+            html.P("This is the home page.")
+        ]
+    elif pathname == "/add-month":
+        return add_month_layout
+    elif pathname == "/page-1":
+        return [
+            html.H1('Page 1', style={'textAlign':'center'}),
+            html.P("This is page 1.")
+        ]
+    elif pathname == "/page-2":
+        return [
+            html.H1('Page 2', style={'textAlign':'center'}),
+            html.P("This is page 2.")
+        ]
+    return dbc.Jumbotron(
+        [
+            html.H1("404: Not found", className="text-danger"),
+            html.Hr(),
+            html.P(f"The pathname {pathname} was not recognised..."),
+        ]
+    )
 
 @app.callback(
     Output('file-upload-status', 'children'),
@@ -105,33 +174,28 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
-    # Check which action has trigered the update method, choosing an excel, or updating a category
     if triggered_id == 'upload-data' and contents is not None:
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
         with open(filename, "wb") as f:
             f.write(decoded)
         
+        global tracker
+        tracker = FinanceTracker()
+        tracker.load_concept_to_category('concept_to_category.json')
         tracker.fill_from_excel_kutxabank(filename)
         file_status = "File uploaded and processed successfully"
-
     elif triggered_id == 'update-category-button' and category is not None:
-        # Accessing directly the nested Div and Dropdown components
         none_category_text_children = none_category_box['props']['children']
         if none_category_text_children:
-            # Extracting the concept from the first Div component
             current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
             tracker.update_category(current_concept, category)
             file_status = "Category updated successfully"
         else:
             file_status = "No items with None category available."
-
-
-
     else:
         return "", "", {}, {}, {}
     
-    # If after update there are concepts with None category, a new concept appears in the textbox
     none_category_df = tracker.data[tracker.data["Categoria"].isna()]
     if none_category_df.empty:
         none_category_box = "No more items with None category."
@@ -144,38 +208,26 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
         ])
     
     if not tracker.data.empty:
-        # Get data for category expenses
         category_expenses = tracker.get_category_expenses().reset_index()
-        # Make negative values positive and create a new column for color
         category_expenses['Positive_Total'] = category_expenses['Total'].abs()
-        # Create a new column to determine bar color
         category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Total'].values]
-        # Create the bar plot
-        fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
-        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1)  # Adjust bargap and bargroupgap for thicker bars
-        # Center the category labels below the bars
-        fig_category.update_xaxes(tickmode='array', tickvals=list(range(len(category_expenses))), ticktext=category_expenses['Categoria'], tickangle=45, tickfont=dict(size=10))        
-        # Get data for daily expenses
+        fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), 
+                              color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
+        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1)
+        
         daily_expenses = tracker.get_daily_expenses().reset_index()
         fig_daily = px.line(daily_expenses, x='Fecha', y='Total', title='Expenses per Day')
         
-        # Get total expenses and earnings
         total_expenses, total_earnings = tracker.get_total_expenses_earnings()
-        
-        # Calculate total savings
         total_savings = total_earnings + total_expenses
         
-        # Create bar plot for expenses and earnings
         fig_total = go.Figure()
         fig_total.add_trace(go.Bar(x=['Expenses'], y=[-total_expenses], name='Expenses', marker_color='rgb(214, 39, 40)'))
         fig_total.add_trace(go.Bar(x=['Earnings'], y=[total_earnings], name='Earnings', marker_color='rgb(31, 119, 180)'))
-        fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', 
-                                barmode='group', showlegend=False)
+        fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', barmode='group', showlegend=False)
         fig_total.update_xaxes(title='Type')
         fig_total.update_yaxes(title='Amount')
-
     else:
-        # Default plots for empty data
         fig_category = px.bar(title='Expenses per Category')
         fig_daily = px.line(title='Expenses per Day')
         fig_total = go.Figure()
