@@ -65,7 +65,10 @@ class FinanceTracker:
         Args:
             filepath (str): The path to the file where the mapping should be saved.
         """
+        with open(filepath, "r") as f:
+            old = json.load(f)
         with open(filepath, "w") as f:
+            self.concept_to_category = {**old, **self.concept_to_category}
             json.dump(self.concept_to_category, f)
     
     def load_concept_to_category(self, filepath):

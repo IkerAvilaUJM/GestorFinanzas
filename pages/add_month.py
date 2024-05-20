@@ -1,95 +1,19 @@
-import dash
-import dash_bootstrap_components as dbc
-from dash import dcc, html
-import plotly.express as px
-import pandas as pd
+from dash import html, dcc
 from dash.dependencies import Input, Output, State
+from app import app
+from FinanceTracker import FinanceTracker
+import plotly.express as px
+import plotly.graph_objects as go
 import base64
 import io
-import json
-from FinanceTracker import FinanceTracker
-import plotly.graph_objects as go
 
-# Load the data for the example sidebar graphs
-df = pd.read_csv('https://raw.githubusercontent.com/Coding-with-Adam/Dash-by-Plotly/master/Bootstrap/Side-Bar/iranian_students.csv')
-
-# Initialize the Dash app
-app = dash.Dash(
-    __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP],
-    suppress_callback_exceptions=True,
-    title='Gestor de Finanzas Personales',
-    #assets_folder='assets',  # This is the default folder, so you can omit this line if your assets are in the default folder
-    # añadir favicon.ico en esta carpeta para el icono de la pestaña
-    update_title='Loading...',  # Optional: to change the title while loading
-)
-
-
-# Styling the sidebar
-SIDEBAR_STYLE = {
-    "position": "fixed",
-    "top": 0,
-    "left": 0,
-    "bottom": 0,
-    "width": "16rem",
-    "padding": "2rem 1rem",
-    "background-color": "#f8f9fa",
-}
-
-# Padding for the page content
-CONTENT_STYLE = {
-    "margin-left": "18rem",
-    "margin-right": "2rem",
-    "padding": "2rem 1rem",
-}
-
-# Define the sidebar layout
-sidebar = html.Div(
-    [
-        html.H2("Sidebar", className="display-4"),
-        html.Hr(),
-        html.P(
-            "Navigation", className="lead"
-        ),
-        dbc.Nav(
-            [
-                dbc.NavLink("Home", href="/", active="exact"),
-                dbc.NavLink("Añadir Mes", href="/add-month", active="exact"),
-                dbc.NavLink("Page 1", href="/page-1", active="exact"),
-                dbc.NavLink("Page 2", href="/page-2", active="exact"),
-            ],
-            vertical=True,
-            pills=True,
-        ),
-    ],
-    style=SIDEBAR_STYLE,
-)
-
-# Define the content layout
-content = html.Div(id="page-content", children=[], style=CONTENT_STYLE)
-
-app.layout = html.Div([
-    dcc.Location(id="url"),
-    sidebar,
-    content
-])
-
-# Initialize the FinanceTracker object and load the concept-to-category mapping
-tracker = FinanceTracker()
-try:
-    tracker.load_concept_to_category('concept_to_category.json')
-except FileNotFoundError:
-    pass
-
-# Initialize the list of possible categories
 categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio', 'Transporte', 
               'Supermercado', 'Deportes', 'Beca', 'Paga', 'Regalos', 'Fiesta', 'Viaje', 'Bares',
               'Café', 'Farmacia', 'Libros', 'Médico', 'Material', 'Peluquería', 'Teléfono',
               'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones', 'Tecnología',
               'Comision Banco']
 
-# Define the "añadir mes" layout
-add_month_layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
+layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
     html.H1("Gestor de Finanzas Personales", style={'textAlign': 'center'}),
     
     dcc.Upload(
@@ -136,35 +60,12 @@ add_month_layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, 
     ], style={'display': 'flex', 'justifyContent': 'space-around'})
 ])
 
-@app.callback(
-    Output('page-content', 'children'),
-    Input('url', 'pathname')
-)
-def render_page_content(pathname):
-    if pathname == "/":
-        return [
-            html.H1('Home', style={'textAlign':'center'}),
-            html.P("This is the home page.")
-        ]
-    elif pathname == "/add-month":
-        return add_month_layout
-    elif pathname == "/page-1":
-        return [
-            html.H1('Page 1', style={'textAlign':'center'}),
-            html.P("This is page 1.")
-        ]
-    elif pathname == "/page-2":
-        return [
-            html.H1('Page 2', style={'textAlign':'center'}),
-            html.P("This is page 2.")
-        ]
-    return dbc.Jumbotron(
-        [
-            html.H1("404: Not found", className="text-danger"),
-            html.Hr(),
-            html.P(f"The pathname {pathname} was not recognised..."),
-        ]
-    )
+# Initialize the FinanceTracker object and load the concept-to-category mapping
+tracker = FinanceTracker()
+try:
+    tracker.load_concept_to_category('concept_to_category.json')
+except FileNotFoundError:
+    pass
 
 @app.callback(
     Output('file-upload-status', 'children'),
@@ -242,6 +143,3 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
     
     tracker.save_concept_to_category('concept_to_category.json')
     return file_status, none_category_box, fig_category, fig_daily, fig_total
-
-if __name__ == '__main__':
-    app.run_server(debug=True)
