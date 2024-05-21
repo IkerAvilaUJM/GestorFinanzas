@@ -1,4 +1,5 @@
 from dash import html, dcc
+import dash
 from dash.dependencies import Input, Output, State
 from app import app
 from FinanceTracker import FinanceTracker
@@ -16,11 +17,13 @@ categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio',
 layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
     html.H1("Gestor de Finanzas Personales", style={'textAlign': 'center'}),
     
+    html.Div(style={'height': '20px'}),  # Adding vertical spacing
+    
     dcc.Upload(
         id='upload-data',
         children=html.Div([
-            'Drag and Drop or ',
-            html.A('Select a Kutxabank Excel File')
+            'Arrastrea y suelta o ',
+            html.A('selecciona un archivo Excel de Kutxabank')
         ]),
         style={
             'width': '50%',
@@ -35,11 +38,11 @@ layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif
         multiple=False
     ),
     
-    html.Div(id='file-upload-status', style={'textAlign': 'center'}),
+    html.Div(id='file-upload-status', style={'textAlign': 'center', 'marginTop': '20px'}),
     
     html.Div(id='none-category-box', style={
         'width': '50%',
-        'margin': 'auto',
+        'margin': '20px auto',
         'border': '1px solid black',
         'padding': '20px',
         'borderRadius': '5px'
@@ -48,16 +51,31 @@ layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif
     dcc.Dropdown(
         id='category-dropdown',
         options=[{'label': c, 'value': c} for c in categories],
-        placeholder='Select a category'
+        placeholder='Selecciona una categoría',
+        style={'width': '50%', 'margin': 'auto', 'marginBottom': '20px'}
     ),
     
-    html.Button('Update Category', id='update-category-button', style={'display': 'block', 'margin': 'auto'}),
+    html.Button('Update Category', id='update-category-button', style={
+        'display': 'block', 
+        'margin': 'auto',
+        'backgroundColor': '#007bff',
+        'color': 'white',
+        'border': 'none',
+        'padding': '10px 20px',
+        'borderRadius': '5px',
+        'fontSize': '16px',
+        'cursor': 'pointer',
+        'marginBottom': '20px'
+    }),
     
     html.Div([
-        dcc.Graph(id='expenses-per-category', style={'width': '40%'}),
-        dcc.Graph(id='expenses-per-day', style={'width': '40%'}),
-        dcc.Graph(id='total-expenses-earnings', style={'width': '20%'})
-    ], style={'display': 'flex', 'justifyContent': 'space-around'})
+        dcc.Graph(id='expenses-per-category', style={'flex': '4'}),
+        dcc.Graph(id='total-expenses-earnings', style={'flex': '1'})
+    ], style={'display': 'flex', 'justifyContent': 'space-between', 'marginTop': '20px'}),
+    
+    html.Div([
+        dcc.Graph(id='cumulative-expenses', style={'flex': '2', 'margin': '0 auto'}),
+    ], style={'display': 'flex', 'justifyContent': 'center', 'marginTop': '20px'})
 ])
 
 # Initialize the FinanceTracker object and load the concept-to-category mapping
@@ -71,7 +89,7 @@ except FileNotFoundError:
     Output('file-upload-status', 'children'),
     Output('none-category-box', 'children'),
     Output('expenses-per-category', 'figure'),
-    Output('expenses-per-day', 'figure'),
+    Output('cumulative-expenses', 'figure'),
     Output('total-expenses-earnings', 'figure'),
     Input('upload-data', 'contents'),
     Input('update-category-button', 'n_clicks'),
@@ -93,21 +111,21 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
         tracker = FinanceTracker()
         tracker.load_concept_to_category('concept_to_category.json')
         tracker.fill_from_excel_kutxabank(filename)
-        file_status = "File uploaded and processed successfully"
-    elif triggered_id == 'update-category-button' and category is not None:
+        file_status = "Archivo cargado correctamente"
+    elif triggered_id == 'Actualizar Categoría' and category is not None:
         none_category_text_children = none_category_box['props']['children']
         if none_category_text_children:
             current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
             tracker.update_category(current_concept, category)
-            file_status = "Category updated successfully"
+            file_status = "Categoria actualizada correctamente"
         else:
-            file_status = "No items with None category available."
+            file_status = "No hay más conceptos sin categoría"
     else:
         return "", "", {}, {}, {}
     
     none_category_df = tracker.data[tracker.data["Categoria"].isna()]
     if none_category_df.empty:
-        none_category_box = "No more items with None category."
+        none_category_box = "No hay más conceptos sin categoría."
     else:
         next_none_category = none_category_df.iloc[0]
         none_category_box = html.Div([
@@ -117,29 +135,61 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
         ])
     
     if not tracker.data.empty:
+        # Category Expenses Plot
         category_expenses = tracker.get_category_expenses().reset_index()
         category_expenses['Positive_Total'] = category_expenses['Total'].abs()
         category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Total'].values]
+        category_expenses = category_expenses.sort_values(by='Positive_Total', ascending=False)
         fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), 
-                              color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
-        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1)
-        
+                            color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
+        fig_category.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
+        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
+        fig_category.update_yaxes(title='')
+        fig_category.update_xaxes(title='')
+
+        # Daily Expenses Change Plot (as Candlestick)
         daily_expenses = tracker.get_daily_expenses().reset_index()
-        fig_daily = px.line(daily_expenses, x='Fecha', y='Total', title='Expenses per Day')
-        
+        daily_expenses['Cumulative'] = daily_expenses['Total'].cumsum()
+        daily_expenses['Daily_Change'] = daily_expenses['Total'].diff().fillna(0)
+        daily_expenses['Open'] = daily_expenses['Cumulative'].shift(1).fillna(0)
+        daily_expenses['Close'] = daily_expenses['Cumulative']
+        daily_expenses['High'] = daily_expenses[['Open', 'Close']].max(axis=1)
+        daily_expenses['Low'] = daily_expenses[['Open', 'Close']].min(axis=1)
+
+        fig_cumulative = go.Figure(data=[go.Candlestick(x=daily_expenses['Fecha'],
+                                                        open=daily_expenses['Open'],
+                                                        high=daily_expenses['High'],
+                                                        low=daily_expenses['Low'],
+                                                        close=daily_expenses['Close'],
+                                                        increasing_line_color='green',
+                                                        increasing_fillcolor='green',
+                                                        decreasing_line_color='red',
+                                                        decreasing_fillcolor='red',
+                                                        opacity=1.0)])
+        fig_cumulative.update_layout(xaxis_rangeslider_visible=False)
+        fig_cumulative.update_layout(title='Cambio Diario', title_x=0.5, showlegend=False)
+        fig_cumulative.update_yaxes(title='')
+        fig_cumulative.update_xaxes(title='Date')
+
+        # Total Expenses and Earnings Plot
         total_expenses, total_earnings = tracker.get_total_expenses_earnings()
         total_savings = total_earnings + total_expenses
-        
+
         fig_total = go.Figure()
-        fig_total.add_trace(go.Bar(x=['Expenses'], y=[-total_expenses], name='Expenses', marker_color='rgb(214, 39, 40)'))
-        fig_total.add_trace(go.Bar(x=['Earnings'], y=[total_earnings], name='Earnings', marker_color='rgb(31, 119, 180)'))
-        fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', barmode='group', showlegend=False)
+        fig_total.add_trace(go.Bar(x=['Gastos'], y=[-total_expenses], name='Gastos', marker_color='rgb(214, 39, 40)'))
+        fig_total.add_trace(go.Bar(x=['Cobros'], y=[total_earnings], name='Cobros', marker_color='rgb(31, 119, 180)'))
+        fig_total.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
+        fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', barmode='group', showlegend=False, title_x=0.5)
         fig_total.update_xaxes(title='Type')
-        fig_total.update_yaxes(title='Amount')
+        fig_total.update_yaxes(title='')
+        fig_total.update_xaxes(title='')
     else:
         fig_category = px.bar(title='Expenses per Category')
-        fig_daily = px.line(title='Expenses per Day')
+        fig_category.update_yaxes(title='')
+        fig_cumulative = px.line(title='Cumulative Expenses')
+        fig_cumulative.update_yaxes(title='')
         fig_total = go.Figure()
+        fig_total.update_yaxes(title='')
     
     tracker.save_concept_to_category('concept_to_category.json')
-    return file_status, none_category_box, fig_category, fig_daily, fig_total
+    return file_status, none_category_box, fig_category, fig_cumulative, fig_total
