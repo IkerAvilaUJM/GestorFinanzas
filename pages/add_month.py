@@ -14,72 +14,96 @@ categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio',
               'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones', 'Tecnología',
               'Comision Banco']
 
-layout = html.Div(style={'margin': '3%', 'font-family': 'VarieraDemo, sans-serif'}, children=[
-    html.H1("Gestor de Finanzas Personales", style={'textAlign': 'center'}),
+# Layout
+layout = html.Div([
+    html.H1("Añadir Mes", style={'textAlign': 'center'}),
     
     html.Div(style={'height': '20px'}),  # Adding vertical spacing
     
-    dcc.Upload(
-        id='upload-data',
-        children=html.Div([
-            'Arrastrea y suelta o ',
-            html.A('selecciona un archivo Excel de Kutxabank')
-        ]),
-        style={
-            'width': '50%',
-            'height': '60px',
-            'lineHeight': '60px',
-            'borderWidth': '1px',
-            'borderStyle': 'dashed',
-            'borderRadius': '5px',
-            'textAlign': 'center',
-            'margin': 'auto'
-        },
-        multiple=False
-    ),
+    html.Div([
+        html.Div([
+            dcc.Upload(
+                id='upload-data',
+                children=html.Div([
+                'Arrastra y suelta o ',
+                html.A('selecciona un archivo Excel de Kutxabank')
+                ]),
+            style={
+                'width': '100%',
+                'height': '60px',
+                'lineHeight': '60px',
+                'borderWidth': '1px',
+                'borderStyle': 'dashed',
+                'borderRadius': '5px',
+                'textAlign': 'center',
+                'margin': 'auto'
+            },
+            multiple=False
+        ),
     
-    html.Div(id='file-upload-status', style={'textAlign': 'center', 'marginTop': '20px'}),
+            html.Div(id='file-upload-status', style={'textAlign': 'center', 'marginTop': '20px'}),
+            html.Div(id='none-category-box', style={
+                'width': '100%',
+                'margin': '20px auto',
+                'border': '1px solid black',
+                'padding': '20px',
+                'borderRadius': '5px'
+            }),
+            dcc.Dropdown(
+                id='category-dropdown',
+                options=[{'label': c, 'value': c} for c in categories],
+                placeholder='Selecciona una categoría',
+                style={'marginBottom': '20px'}
+            ),
+            
+            html.Div(
+                html.Button('Añadir Concepto', id='update-category-button', style={
+                    'backgroundColor': '#007bff',
+                    'color': 'white',
+                    'border': 'none',
+                    'padding': '10px 20px',
+                    'borderRadius': '5px',
+                    'fontSize': '16px',
+                    'cursor': 'pointer'
+                }),
+                style={'display': 'flex', 'justifyContent': 'center'}
+            ),
+        ], style={'flex': '2', 'marginRight': '20px', 'display': 'flex', 'flexDirection': 'column', 'justifyContent': 'center'}),
+        
+        html.Div([
+            dcc.Graph(id='total-expenses-earnings', style={'height': '400px', 'maxWidth': '300px'})
+        ], style={'flex': '1', 'display': 'flex', 'alignItems': 'center', 'maxWidth': '300px'}),
+    ], style={'display': 'flex', 'justifyContent': 'space-between', 'marginTop': '20px'}),
     
-    html.Div(id='none-category-box', style={
-        'width': '50%',
+    html.Div([
+        dcc.Graph(id='expenses-per-category', style={'flex': '1'}),
+    ], style={'marginTop': '20px'}),
+    
+    html.Div([
+        dcc.Graph(id='cumulative-expenses', style={'height': '400px'}),
+    ], style={'marginTop': '20px'}),
+    
+    html.Button('Confirmar y Añadir Mes', id='update-global-tracker-button', style={
+        'display': 'block',
         'margin': '20px auto',
-        'border': '1px solid black',
-        'padding': '20px',
-        'borderRadius': '5px'
-    }),
-    
-    dcc.Dropdown(
-        id='category-dropdown',
-        options=[{'label': c, 'value': c} for c in categories],
-        placeholder='Selecciona una categoría',
-        style={'width': '50%', 'margin': 'auto', 'marginBottom': '20px'}
-    ),
-    
-    html.Button('Update Category', id='update-category-button', style={
-        'display': 'block', 
-        'margin': 'auto',
-        'backgroundColor': '#007bff',
+        'backgroundColor': '#28a745',
         'color': 'white',
         'border': 'none',
         'padding': '10px 20px',
         'borderRadius': '5px',
         'fontSize': '16px',
-        'cursor': 'pointer',
-        'marginBottom': '20px'
+        'cursor': 'pointer'
     }),
-    
-    html.Div([
-        dcc.Graph(id='expenses-per-category', style={'flex': '4'}),
-        dcc.Graph(id='total-expenses-earnings', style={'flex': '1'})
-    ], style={'display': 'flex', 'justifyContent': 'space-between', 'marginTop': '20px'}),
-    
-    html.Div([
-        dcc.Graph(id='cumulative-expenses', style={'flex': '2', 'margin': '0 auto'}),
-    ], style={'display': 'flex', 'justifyContent': 'center', 'marginTop': '20px'})
 ])
 
 # Initialize the FinanceTracker object and load the concept-to-category mapping
 tracker = FinanceTracker()
+tracker_global = FinanceTracker()
+try:
+    tracker_global.load_tracker('tracker.json')
+except FileNotFoundError:
+    pass
+
 try:
     tracker.load_concept_to_category('concept_to_category.json')
 except FileNotFoundError:
@@ -93,11 +117,12 @@ except FileNotFoundError:
     Output('total-expenses-earnings', 'figure'),
     Input('upload-data', 'contents'),
     Input('update-category-button', 'n_clicks'),
+    Input('update-global-tracker-button', 'n_clicks'),
     State('upload-data', 'filename'),
     State('category-dropdown', 'value'),
     State('none-category-box', 'children')
 )
-def update_tracker(contents, n_clicks, filename, category, none_category_box):
+def update_tracker(contents, n_clicks_update, n_clicks_global, filename, category, none_category_box):
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
@@ -112,7 +137,7 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
         tracker.load_concept_to_category('concept_to_category.json')
         tracker.fill_from_excel_kutxabank(filename)
         file_status = "Archivo cargado correctamente"
-    elif triggered_id == 'Actualizar Categoría' and category is not None:
+    elif triggered_id == 'update-category-button' and category is not None:
         none_category_text_children = none_category_box['props']['children']
         if none_category_text_children:
             current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
@@ -120,6 +145,11 @@ def update_tracker(contents, n_clicks, filename, category, none_category_box):
             file_status = "Categoria actualizada correctamente"
         else:
             file_status = "No hay más conceptos sin categoría"
+    elif triggered_id == 'update-global-tracker-button':
+        global tracker_global
+        tracker_global += tracker
+        tracker_global.save_tracker('tracker.json')
+        file_status = "Global tracker actualizado y guardado"
     else:
         return "", "", {}, {}, {}
     

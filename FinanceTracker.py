@@ -209,19 +209,24 @@ class FinanceTracker:
         return expenses, earnings
 
     def __add__(self, other):
-        """
-        Combines two FinanceTracker objects by adding the rows of one DataFrame to the other.
-        
-        Args:
-            other (FinanceTracker): Another FinanceTracker object.
+            """
+            Combines two FinanceTracker objects by adding the rows of one DataFrame to the other.
             
-        Returns:
-            FinanceTracker: A new FinanceTracker object containing combined data.
-        """
-        combined = FinanceTracker()
-        combined.data = pd.concat([self.data, other.data]).reset_index(drop=True)
-        combined._update_concept_to_category()
-        return combined
+            Args:
+                other (FinanceTracker): Another FinanceTracker object.
+                
+            Returns:
+                FinanceTracker: A new FinanceTracker object containing combined data.
+            """
+            combined = FinanceTracker()
+
+            # Exclude empty or all-NA entries before concatenation
+            self_non_empty = self.data.dropna(how='all', axis=0).reset_index(drop=True)
+            other_non_empty = other.data.dropna(how='all', axis=0).reset_index(drop=True)
+
+            combined.data = pd.concat([self_non_empty, other_non_empty]).reset_index(drop=True)
+            combined._update_concept_to_category()
+            return combined
 
     def __str__(self):
         """
