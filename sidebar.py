@@ -20,7 +20,7 @@ sidebar_items = [
     ("🏠 Inicio", "/", "🏠"),
     ("➕ Añadir Mes", "/add-month", "➕"),
     ("📂 Gestionar Categorías", "/page-1", "📂"),
-    ("🗑️ Eliminar mes", "/page-2", "🗑️"),
+    ("🗑️ Eliminar mes", "/delete_month", "🗑️"),
 ]
 
 sidebar = html.Div(

@@ -35,6 +35,7 @@ class FinanceTracker:
         # Ensure 'Categoria' column has dtype 'object' to accommodate string values
         self.data["Categoria"] = self.data["Categoria"].astype(object)
         self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
+        self.add_movement("Tracker init", str(datetime.today()).split()[0], 0.0, "Otros")
         self.concept_to_category = {}
 
 
@@ -55,8 +56,11 @@ class FinanceTracker:
             filepath (str): The path to the file from where the DataFrame should be loaded.
         """
         self.data = pd.read_json(filepath, orient="records")
-        self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
-        self._update_concept_to_category()
+        try:
+            self.data["Fecha"] = pd.to_datetime(self.data["Fecha"]).dt.date
+            self._update_concept_to_category()
+        except KeyError:
+            pass
 
     def save_concept_to_category(self, filepath):
         """
@@ -108,13 +112,15 @@ class FinanceTracker:
         df["Categoria"] = None
         # Assign the existing categories to new movements where applicable
         df["Categoria"] = df["Concepto"].map(self.concept_to_category)
-        
+
+        # check if the data has only the default entry with todays date and "Otros" category
+        if self.data.shape[0] == 1 and self.data["Concepto"].iloc[0] == "Tracker init":
+            self.data = df.copy()  # Replace the existing data with the new DataFrame
         # Check if both DataFrames contain non-empty data
-        if not self.data.empty and not df.empty:
+        elif not df.empty:
             # Append the data to the FinanceTracker's data
             self.data = pd.concat([self.data, df], ignore_index=True)
-        elif not df.empty:
-            self.data = df.copy()  # Replace the existing data with the new DataFrame
+
         # Update the concept to category mapping
         self._update_concept_to_category()
 
@@ -157,7 +163,10 @@ class FinanceTracker:
         if category is None and concept in self.concept_to_category:
             category = self.concept_to_category[concept]
         new_movement = pd.DataFrame([{"Concepto": concept, "Fecha": date, "Importe": amount, "Categoria": category}])
-        self.data = pd.concat([self.data, new_movement], ignore_index=True)
+        if self.data.empty:
+            self.data = new_movement
+        else:
+            self.data = pd.concat([self.data, new_movement], ignore_index=True)
         
         # Update the concept to category mapping
         self._update_concept_to_category()
@@ -207,6 +216,7 @@ class FinanceTracker:
         expenses = self.data[self.data["Importe"] < 0]["Importe"].sum()
         earnings = self.data[self.data["Importe"] > 0]["Importe"].sum()
         return expenses, earnings
+    
 
     def __add__(self, other):
             """
@@ -219,6 +229,9 @@ class FinanceTracker:
                 FinanceTracker: A new FinanceTracker object containing combined data.
             """
             combined = FinanceTracker()
+
+            if self.data.empty:
+                return other
 
             # Exclude empty or all-NA entries before concatenation
             self_non_empty = self.data.dropna(how='all', axis=0).reset_index(drop=True)

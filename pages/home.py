@@ -11,9 +11,9 @@ locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
 
 # Sample Data
 tracker_global = FinanceTracker()
+
 tracker_global.load_tracker('tracker.json')
 df = tracker_global.data
-
 # Ensure 'Fecha' is in datetime format
 df['Fecha'] = pd.to_datetime(df['Fecha'])
 
@@ -48,6 +48,7 @@ layout = html.Div([
     ], style={'marginTop': '30px'})
 ])
 
+
 # Callback to update the category expenses plot, daily expenses change plot, and monthly expenses change plot
 @app.callback(
     [Output('category-expenses', 'figure'),
@@ -57,6 +58,13 @@ layout = html.Div([
      Input('date-picker-range', 'end_date')]
 )
 def update_plots(start_date, end_date):
+    # Load Data
+    tracker_global = FinanceTracker()
+
+    tracker_global.load_tracker('tracker.json')
+    df = tracker_global.data
+    # Ensure 'Fecha' is in datetime format
+    df['Fecha'] = pd.to_datetime(df['Fecha'])
     # Convert start_date and end_date to datetime
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
@@ -66,13 +74,18 @@ def update_plots(start_date, end_date):
     else:
         filtered_df = df[(df['Fecha'] >= start_date) & (df['Fecha'] <= end_date)]
 
+    filtered_tracker = FinanceTracker()
+    filtered_tracker.data = filtered_df
+    total_expense, total_earning = filtered_tracker.get_total_expenses_earnings()
+    total_overall = total_earning+total_expense
+
     # Category Expenses Plot
-    category_expenses = tracker_global.get_category_expenses().reset_index()
+    category_expenses = filtered_tracker.get_category_expenses().reset_index()
     category_expenses['Positive_Total'] = category_expenses['Total'].abs()
     category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Total'].values]
     category_expenses = category_expenses.sort_values(by='Positive_Total', ascending=False)
     fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), 
-                          color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por Categoría')
+                          color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title=f'Total: {total_overall:.0f}€')
     fig_category.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
     fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
     fig_category.update_yaxes(title='')
@@ -98,6 +111,7 @@ def update_plots(start_date, end_date):
                                                           decreasing_line_color='red',
                                                           decreasing_fillcolor='red',
                                                           opacity=1.0)])
+
     fig_cumulative_daily.update_layout(xaxis_rangeslider_visible=False)
     fig_cumulative_daily.update_layout(title='Cambio Diario', title_x=0.5, showlegend=False)
     fig_cumulative_daily.update_yaxes(title='')

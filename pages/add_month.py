@@ -146,10 +146,13 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
         else:
             file_status = "No hay más conceptos sin categoría"
     elif triggered_id == 'update-global-tracker-button':
-        global tracker_global
+        tracker_global = FinanceTracker()
+        tracker_global.load_tracker('tracker.json')
         tracker_global += tracker
         tracker_global.save_tracker('tracker.json')
         file_status = "Global tracker actualizado y guardado"
+        tracker = FinanceTracker()
+        return "", "", {}, {}, {}
     else:
         return "", "", {}, {}, {}
     
