@@ -74,7 +74,7 @@ class FinanceTracker:
         with open(filepath, "w") as f:
             self.concept_to_category = {**old, **self.concept_to_category}
             json.dump(self.concept_to_category, f)
-    
+
     def load_concept_to_category(self, filepath):
         """
         Loads the concept to category mapping from a JSON file.
@@ -133,7 +133,37 @@ class FinanceTracker:
             pd.DataFrame: A DataFrame with categories as index and total amount as the column.
         """
         return self.data.groupby("Categoria")["Importe"].sum().reset_index().set_index("Categoria").rename(columns={"Importe": "Total"})
+    
+    def detail_category(self, category):
+        """
+        Returns the expenses for a specific category.
 
+        Args:
+            category (str): The category to filter the DataFrame.
+
+        Returns:
+            FinanceTracker: A finance tracker with the expenses for the specified category.
+        """
+        df = self.data[self.data["Categoria"] == category]
+        tracker_category = FinanceTracker()
+        tracker_category.data = df
+        tracker_category._update_concept_to_category()
+        return tracker_category
+
+    def get_concepts(self):
+        """
+        Returns:
+            list: A list with all the unique concepts in the DataFrame.
+        """
+        return self.data["Concepto"].unique()
+    
+    def get_categories(self):
+        """
+        Returns:
+            list: A list with all the unique categories in the DataFrame.
+        """
+        return self.data["Categoria"].unique()
+    
     def get_daily_expenses(self, exclude_categories=None):
         """
         Returns the total amount for each day, optionally excluding certain categories.
@@ -284,3 +314,5 @@ class FinanceTracker:
 # print(tracker.get_daily_expenses(exclude_categories=["Salario"]))
 # tracker.fill_from_excel_kutxabank("Movimientos Kutxabank/2023-04.xls")
 # print(tracker)
+
+

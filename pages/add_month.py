@@ -8,11 +8,20 @@ import plotly.graph_objects as go
 import base64
 import io
 
-categories = ['Alquiler', 'Sueldo', 'Comida Uni', 'Comer fuera', 'Ropa', 'Ocio', 'Transporte', 
-              'Supermercado', 'Deportes', 'Beca', 'Paga', 'Regalos', 'Fiesta', 'Viaje', 'Bares',
-              'Café', 'Farmacia', 'Libros', 'Médico', 'Material', 'Peluquería', 'Teléfono',
-              'Otros', 'Cine', 'Gasolina', 'Casa', 'Suscripciones', 'Bollería', 'Inversiones', 'Tecnología',
-              'Comision Banco']
+# Initialize the FinanceTracker object and load the concept-to-category mapping
+tracker = FinanceTracker()
+tracker_global = FinanceTracker()
+try:
+    tracker_global.load_tracker('tracker.json')
+except FileNotFoundError:
+    pass
+
+try:
+    tracker.load_concept_to_category('concept_to_category.json')
+except FileNotFoundError:
+    pass
+
+categories = tracker_global.get_categories()
 
 # Layout
 layout = html.Div([
@@ -95,19 +104,6 @@ layout = html.Div([
         'cursor': 'pointer'
     }),
 ])
-
-# Initialize the FinanceTracker object and load the concept-to-category mapping
-tracker = FinanceTracker()
-tracker_global = FinanceTracker()
-try:
-    tracker_global.load_tracker('tracker.json')
-except FileNotFoundError:
-    pass
-
-try:
-    tracker.load_concept_to_category('concept_to_category.json')
-except FileNotFoundError:
-    pass
 
 @app.callback(
     Output('file-upload-status', 'children'),
