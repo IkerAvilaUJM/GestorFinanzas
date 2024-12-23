@@ -19,7 +19,7 @@ SIDEBAR_HIDDEN_STYLE["padding"] = "2rem 0.5rem"
 sidebar_items = [
     ("🏠 Inicio", "/", "🏠"),
     ("➕ Añadir Mes", "/add-month", "➕"),
-    ("📂 Gestionar Categorías", "/category_analysis", "📂"),
+    ("📂 Analisis Categorías", "/category_analysis", "📂"),
     ("🗑️ Eliminar mes", "/delete_month", "🗑️"),
 ]
 
