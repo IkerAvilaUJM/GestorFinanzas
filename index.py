@@ -2,7 +2,7 @@ from dash.dependencies import Input, Output, State
 from app import app
 from layout import layout
 from sidebar import sidebar_items, SIDEBAR_STYLE, SIDEBAR_HIDDEN_STYLE
-from pages import eliminar_mes, home, add_month, page1
+from pages import category_analysis, eliminar_mes, home, add_month
 from dash import html
 
 app.layout = layout
@@ -44,7 +44,7 @@ def register_callbacks(app):
         elif pathname == "/add-month":
             return add_month.layout
         elif pathname == "/page-1":
-            return page1.layout
+            return category_analysis.layout
         elif pathname == "/delete_month":
             return eliminar_mes.layout
         return html.Div([

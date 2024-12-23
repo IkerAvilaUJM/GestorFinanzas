@@ -3,6 +3,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from app import app
 from FinanceTracker import FinanceTracker
+from plotting_functions import *
 import pandas as pd
 import locale
 from datetime import datetime
@@ -84,28 +85,8 @@ def update_bar_chart(selected_year, selected_month):
     if filtered_df.empty:
         return go.Figure()
     
-    # Compute category expenses and prepare for plotting
-    category_expenses = filtered_df.groupby('Categoria')['Importe'].sum().reset_index()
-    category_expenses['Positive_Total'] = category_expenses['Importe'].abs()
-    category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Importe'].values]
-    category_expenses = category_expenses.sort_values(by='Positive_Total', ascending=False)
-    filtered_tracker = FinanceTracker()
-    filtered_tracker.data = filtered_df
-    total_expense, total_earning = filtered_tracker.get_total_expenses_earnings()
-    total_overall = total_earning+total_expense
-    
-    fig_category = px.bar(
-        category_expenses, 
-        x='Categoria', 
-        y='Positive_Total', 
-        color=category_expenses['Importe'].apply(lambda x: x < 0), 
-        color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, 
-        title=f"Total en {months[selected_month]} {selected_year} : {total_overall:.0f}"
-    )
-    fig_category.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
-    fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
-    fig_category.update_yaxes(title='')
-    fig_category.update_xaxes(title='')
+    fig_category = plot_category_expenses(filtered_df)
+    fig_category.update_layout(title=f'Gastos de {months[selected_month]} {selected_year}', title_x=0.5)
     
     return fig_category
 

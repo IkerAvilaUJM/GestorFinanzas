@@ -4,6 +4,7 @@ from dash.dependencies import Input, Output
 from app import app
 import pandas as pd
 from FinanceTracker import FinanceTracker
+from plotting_functions import *
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -119,27 +120,9 @@ def update_category_bar_chart(selected_category):
     # Load data for the selected category
     tracker_category = tracker_global.detail_category(selected_category)
     df = tracker_category.data
-    df['Fecha'] = pd.to_datetime(df['Fecha'])
-
-    # Group by month and sum expenses
-    df_monthly = df.groupby(df['Fecha'].dt.to_period('M'))['Importe'].sum().reset_index()
-    df_monthly['Fecha'] = df_monthly['Fecha'].dt.to_timestamp()  # Convert period to timestamp for Plotly
-    df_monthly['Positive_Total'] = df_monthly['Importe'].abs()
-    df_monthly['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in df_monthly['Importe'].values]
-
-    # Create the bar chart
-    fig = px.bar(
-        df_monthly,
-        x='Fecha',
-        y='Positive_Total',
-        color=df_monthly['Importe'].apply(lambda x: x < 0),
-        color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'},
-        title=f'Monthly Expenses for {selected_category}',
-        labels={'Fecha': 'Month', 'Importe': 'Amount (€)'}
-    )
-    fig.update_layout(barmode='group', title_x=0.5)
-    fig.update_yaxes(title='')
-    fig.update_xaxes(title='')
+    
+    fig = plot_monthly_expenses(df)
+    fig.update_layout(title=f'Monthly Expenses for {selected_category}', title_x=0.5)
 
     return fig
 
@@ -159,27 +142,9 @@ def update_concept_bar_chart(selected_category, selected_concept):
 
     # Filter by selected concept
     df = df[df['Concepto'] == selected_concept]
-    df['Fecha'] = pd.to_datetime(df['Fecha'])
-
-    # Group by month and sum expenses
-    df_monthly = df.groupby(df['Fecha'].dt.to_period('M'))['Importe'].sum().reset_index()
-    df_monthly['Fecha'] = df_monthly['Fecha'].dt.to_timestamp()
-    df_monthly['Positive_Total'] = df_monthly['Importe'].abs()
-    df_monthly['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in df_monthly['Importe'].values]
-
-    # Create the bar chart
-    fig = px.bar(
-        df_monthly,
-        x='Fecha',
-        y='Positive_Total',
-        color=df_monthly['Importe'].apply(lambda x: x < 0),
-        color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'},
-        title=f'Monthly Expenses for {selected_category}',
-        labels={'Fecha': 'Month', 'Importe': 'Amount (€)'}
-    )
-    fig.update_layout(barmode='group', title_x=0.5)
-    fig.update_yaxes(title='')
-    fig.update_xaxes(title='')
+    
+    fig = plot_monthly_expenses(df)
+    fig.update_layout(title=f'Monthly Expenses for {selected_concept}', title_x=0.5)
 
     return fig
 
@@ -199,18 +164,11 @@ def update_month_bar_chart(selected_category, selected_month):
     # Ensure 'Fecha' is in datetime format
     df['Fecha'] = pd.to_datetime(df['Fecha'])
 
-    # Debugging: Check the selected month and the data's available months
-    print(f"Selected Month: {selected_month}")
-    print(f"Available Months in Data: {df['Fecha'].dt.to_period('M').unique()}")
-
     # Convert selected_month to period if it's not already
     selected_month_period = pd.to_datetime(selected_month).to_period('M')
 
     # Filter by selected month
     filtered_df = df[df['Fecha'].dt.to_period('M') == selected_month_period]
-
-    # Debugging: Check if the filtered DataFrame is empty
-    print(f"Filtered Data for {selected_month_period}: {filtered_df.shape[0]} records found")
 
     # If no records are found, return an empty figure
     if filtered_df.empty:
