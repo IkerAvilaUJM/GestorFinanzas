@@ -22,6 +22,8 @@ def plot_monthly_expenses(df):
     df_monthly = df.groupby(df['Fecha'].dt.to_period('M'))['Importe'].sum().reset_index()
     df_monthly['Fecha'] = df_monthly['Fecha'].dt.to_timestamp()  # Convert period to timestamp for Plotly
     df_monthly['Positive_Total'] = df_monthly['Importe'].abs()
+    # hide legend
+
 
     # Create the bar chart
     fig = px.bar(
@@ -33,16 +35,16 @@ def plot_monthly_expenses(df):
         title=f'Monthly Expenses',
         labels={'Fecha': 'Month', 'Importe': 'Amount (€)'}
     )
-    fig.update_layout(barmode='group', title_x=0.5)
+    fig.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
     fig.update_yaxes(title='')
     fig.update_xaxes(title='')
 
     total = round(df_monthly['Importe'].sum())
     return fig, total
 
-def plot_category_expenses(df):
+def plot_category_expenses(df, field="Categoria"):
     # Compute category expenses and prepare for plotting
-    category_expenses = df.groupby('Categoria')['Importe'].sum().reset_index()
+    category_expenses = df.groupby(field)['Importe'].sum().reset_index()
     category_expenses['Positive_Total'] = category_expenses['Importe'].abs()
     category_expenses = category_expenses.sort_values(by='Positive_Total', ascending=False)
     filtered_tracker = FinanceTracker()
@@ -52,7 +54,7 @@ def plot_category_expenses(df):
     
     fig_category = px.bar(
         category_expenses, 
-        x='Categoria', 
+        x=field, 
         y='Positive_Total', 
         color=category_expenses['Importe'].apply(lambda x: x < 0), 
         color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, 

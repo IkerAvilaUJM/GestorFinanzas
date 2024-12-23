@@ -27,17 +27,19 @@ concepts = tracker_global.get_concepts()
 layout = html.Div([
     # Title
     html.H1('Category Analysis', style={'textAlign': 'center', 'marginBottom': '20px'}),
-    
+
     # Dropdown for selecting category
     html.Div([
-        html.Label('Select Category:', style={'marginRight': '10px'}),
-        dcc.Dropdown(
-            id='category-dropdown',
-            options=categories,
-            placeholder='Choose a category',
-            style={'width': '40%', 'display': 'inline-block', 'marginRight': '20px'}
-        ),
-    ], style={'marginBottom': '30px'}),
+        html.Div([
+            html.Label('Select Category:', style={'marginRight': '10px'}),
+            dcc.Dropdown(
+                id='category-dropdown',
+                options=categories,
+                placeholder='Choose a category',
+                style={'width': '300px'}
+            ),
+        ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
+    ]),
 
     # Bar chart for displaying monthly expenses for the selected category
     dcc.Graph(
@@ -47,14 +49,16 @@ layout = html.Div([
 
     # Dropdown for selecting concept based on selected category
     html.Div([
-        html.Label('Select Concept:', style={'marginRight': '10px'}),
-        dcc.Dropdown(
-            id='concept-dropdown',
-            options=concepts,
-            placeholder='Choose a concept',
-            style={'width': '40%', 'display': 'inline-block', 'marginRight': '20px'}
-        ),
-    ], style={'marginBottom': '30px'}),
+        html.Div([
+            html.Label('Select Concept:', style={'marginRight': '10px'}),
+            dcc.Dropdown(
+                id='concept-dropdown',
+                options=concepts,
+                placeholder='Choose a concept',
+                style={'width': '300px'}
+            ),
+        ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
+    ]),
 
     # Bar chart for displaying monthly expenses for the selected concept
     dcc.Graph(
@@ -64,14 +68,16 @@ layout = html.Div([
 
     # Dropdown for selecting a month
     html.Div([
-        html.Label('Select Month:', style={'marginRight': '10px'}),
-        dcc.Dropdown(
-            id='month-dropdown-category',
-            options=[],
-            placeholder='Choose a month',
-            style={'width': '40%', 'display': 'inline-block', 'marginRight': '20px'}
-        ),
-    ], style={'marginBottom': '30px'}),
+        html.Div([
+            html.Label('Select Month:', style={'marginRight': '10px'}),
+            dcc.Dropdown(
+                id='month-dropdown-category',
+                options=[],
+                placeholder='Choose a month',
+                style={'width': '300px'}
+            ),
+        ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '20px'}),
+    ]),
 
     # Bar chart for displaying expenses for the selected month
     dcc.Graph(
@@ -79,6 +85,7 @@ layout = html.Div([
         style={'height': '400px'}
     ),
 ])
+
 
 # Callback to update the concepts dropdown based on the selected category
 @app.callback(
@@ -170,7 +177,7 @@ def update_month_bar_chart(selected_category, selected_month):
     # Filter by selected month
     filtered_df = df[df['Fecha'].dt.to_period('M') == selected_month_period]
 
-    fig, total = plot_category_expenses(filtered_df)
+    fig, total = plot_category_expenses(filtered_df, field="Concepto")
     fig.update_layout(title=f'Expenses for {selected_month}: {total}€', title_x=0.5)
 
     return fig

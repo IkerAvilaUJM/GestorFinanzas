@@ -127,6 +127,7 @@ layout = html.Div([
     Output('cumulative-expenses', 'figure'),
     Output('total-expenses-earnings', 'figure'),
     Output('new-category-input', 'value'),  # Clear the input field after use
+    Output('category-dropdown', 'options'),  # Update dropdown options
     Input('upload-data', 'contents'),
     Input('update-category-button', 'n_clicks'),
     Input('update-global-tracker-button', 'n_clicks'),
@@ -154,8 +155,7 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdow
         tracker.fill_from_excel_kutxabank(filename)
         file_status = "Archivo cargado correctamente"
     
-    #add concept
-
+    # Add concept
     elif triggered_id == 'update-category-button':
         # Prioritize input category if provided
         category = input_category if input_category else dropdown_category
@@ -167,6 +167,10 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdow
                 current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
                 tracker.update_category(current_concept, category)
                 file_status = "Categoría actualizada correctamente"
+                
+                # Add new category if it's not already in the dropdown
+                if input_category and input_category not in tracker.get_categories():
+                    tracker.add_category(input_category)  # Add to tracker if necessary
             else:
                 file_status = "No hay más conceptos sin categoría"
         else:
@@ -179,7 +183,7 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdow
         tracker_global.save_tracker('tracker.json')
         file_status = "Global tracker actualizado y guardado"
         tracker = FinanceTracker()
-        return "", "", {}, {}, {}, ""
+        return "", "", {}, {}, {}, "", []
     
     none_category_df = tracker.data[tracker.data["Categoria"].isna()]
     if none_category_df.empty:
@@ -192,8 +196,7 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdow
             html.Div(f"Importe: {next_none_category['Importe']}")
         ])
     
-    #plots
-
+    # Generate plots
     if not tracker.data.empty:
         df = tracker.data
 
@@ -225,5 +228,9 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdow
 
     tracker.save_concept_to_category('concept_to_category.json')
     
+    # Get updated category list for the dropdown
+    categories = tracker.get_categories()
+    dropdown_options = [{'label': c, 'value': c} for c in categories]
+    
     # Clear input field after processing
-    return file_status, none_category_box, fig_category, fig_cumulative, fig_total, ""
+    return file_status, none_category_box, fig_category, fig_cumulative, fig_total, "", dropdown_options
