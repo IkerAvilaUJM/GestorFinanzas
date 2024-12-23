@@ -121,8 +121,8 @@ def update_category_bar_chart(selected_category):
     tracker_category = tracker_global.detail_category(selected_category)
     df = tracker_category.data
     
-    fig = plot_monthly_expenses(df)
-    fig.update_layout(title=f'Monthly Expenses for {selected_category}', title_x=0.5)
+    fig, total = plot_monthly_expenses(df)
+    fig.update_layout(title=f'Expenses for {selected_category}: {total}€', title_x=0.5)
 
     return fig
 
@@ -143,8 +143,8 @@ def update_concept_bar_chart(selected_category, selected_concept):
     # Filter by selected concept
     df = df[df['Concepto'] == selected_concept]
     
-    fig = plot_monthly_expenses(df)
-    fig.update_layout(title=f'Monthly Expenses for {selected_concept}', title_x=0.5)
+    fig, total = plot_monthly_expenses(df)
+    fig.update_layout(title=f'Expenses for {selected_concept}: {total}€', title_x=0.5)
 
     return fig
 
@@ -170,28 +170,8 @@ def update_month_bar_chart(selected_category, selected_month):
     # Filter by selected month
     filtered_df = df[df['Fecha'].dt.to_period('M') == selected_month_period]
 
-    # If no records are found, return an empty figure
-    if filtered_df.empty:
-        return go.Figure()
-
-    # Group by concept and sum expenses
-    df_monthly = filtered_df.groupby('Concepto')['Importe'].sum().reset_index()
-    df_monthly['Positive_Total'] = df_monthly['Importe'].abs()
-    df_monthly['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in df_monthly['Importe'].values]
-    df_monthly = df_monthly.sort_values(by='Positive_Total', ascending=False)
-
-    fig = px.bar(
-        df_monthly,
-        x='Concepto',
-        y='Positive_Total',
-        color=df_monthly['Importe'].apply(lambda x: x < 0),
-        color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'},
-        title=f"Total Expenses in {selected_month}",
-        labels={'Concepto': 'Concept', 'Positive_Total': 'Amount (€)'}
-    )
-
-    fig.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
-    fig.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
+    fig, total = plot_category_expenses(filtered_df)
+    fig.update_layout(title=f'Expenses for {selected_month}: {total}€', title_x=0.5)
 
     return fig
 

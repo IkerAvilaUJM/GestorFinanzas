@@ -43,7 +43,7 @@ def register_callbacks(app):
             return home.layout
         elif pathname == "/add-month":
             return add_month.layout
-        elif pathname == "/page-1":
+        elif pathname == "/category_analysis":
             return category_analysis.layout
         elif pathname == "/delete_month":
             return eliminar_mes.layout

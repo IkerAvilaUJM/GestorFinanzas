@@ -37,7 +37,8 @@ def plot_monthly_expenses(df):
     fig.update_yaxes(title='')
     fig.update_xaxes(title='')
 
-    return fig
+    total = round(df_monthly['Importe'].sum())
+    return fig, total
 
 def plot_category_expenses(df):
     # Compute category expenses and prepare for plotting
@@ -62,4 +63,5 @@ def plot_category_expenses(df):
     fig_category.update_yaxes(title='')
     fig_category.update_xaxes(title='')
 
-    return fig_category
+    total = round(category_expenses['Importe'].sum())
+    return fig_category, total

@@ -85,8 +85,8 @@ def update_bar_chart(selected_year, selected_month):
     if filtered_df.empty:
         return go.Figure()
     
-    fig_category = plot_category_expenses(filtered_df)
-    fig_category.update_layout(title=f'Gastos de {months[selected_month]} {selected_year}', title_x=0.5)
+    fig_category, total = plot_category_expenses(filtered_df)
+    fig_category.update_layout(title=f'Gastos de {months[selected_month]} {selected_year}: {total}€', title_x=0.5)
     
     return fig_category
 
