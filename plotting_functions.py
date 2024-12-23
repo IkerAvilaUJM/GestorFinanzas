@@ -56,7 +56,7 @@ def plot_category_expenses(df):
         y='Positive_Total', 
         color=category_expenses['Importe'].apply(lambda x: x < 0), 
         color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, 
-        title=f"Total: {total_overall:.0f}€"
+        title=f"Category Expenses"
     )
     fig_category.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
     fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
@@ -65,3 +65,27 @@ def plot_category_expenses(df):
 
     total = round(category_expenses['Importe'].sum())
     return fig_category, total
+
+def daily_candlestick(daily_expenses):
+    daily_expenses['Cumulative'] = daily_expenses['Total'].cumsum()
+    daily_expenses['Daily_Change'] = daily_expenses['Total'].diff().fillna(0)
+    daily_expenses['Open'] = daily_expenses['Cumulative'].shift(1).fillna(0)
+    daily_expenses['Close'] = daily_expenses['Cumulative']
+    daily_expenses['High'] = daily_expenses[['Open', 'Close']].max(axis=1)
+    daily_expenses['Low'] = daily_expenses[['Open', 'Close']].min(axis=1)
+
+    fig_cumulative = go.Figure(data=[go.Candlestick(x=daily_expenses['Fecha'],
+                                                    open=daily_expenses['Open'],
+                                                    high=daily_expenses['High'],
+                                                    low=daily_expenses['Low'],
+                                                    close=daily_expenses['Close'],
+                                                    increasing_line_color='green',
+                                                    increasing_fillcolor='green',
+                                                    decreasing_line_color='red',
+                                                    decreasing_fillcolor='red',
+                                                    opacity=1.0)])
+    fig_cumulative.update_layout(xaxis_rangeslider_visible=False)
+    fig_cumulative.update_layout(title='Cambio Diario', title_x=0.5, showlegend=False)
+    fig_cumulative.update_xaxes(title='Date')
+
+    return fig_cumulative

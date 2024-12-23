@@ -3,6 +3,7 @@ import dash
 from dash.dependencies import Input, Output, State
 from app import app
 from FinanceTracker import FinanceTracker
+from plotting_functions import *
 import plotly.express as px
 import plotly.graph_objects as go
 import base64
@@ -58,12 +59,26 @@ layout = html.Div([
                 'padding': '20px',
                 'borderRadius': '5px'
             }),
-            dcc.Dropdown(
-                id='category-dropdown',
-                options=[{'label': c, 'value': c} for c in categories],
-                placeholder='Selecciona una categoría',
-                style={'marginBottom': '20px'}
-            ),
+            html.Div([
+                dcc.Dropdown(
+                    id='category-dropdown',
+                    options=[{'label': c, 'value': c} for c in categories],
+                    placeholder='Selecciona una categoría',
+                    style={'width': '50%',
+                           'height': '38px'}
+                ),
+                # New category input field
+                dcc.Input(
+                    id='new-category-input',
+                    type='text',
+                    placeholder='Crear Nueva Categoría',
+                    style={
+                        'width': '50%',
+                        'borderRadius': '5px',
+                        'height': '38px',
+                        }
+                ),
+            ], style={'display': 'flex', 'alignItems': 'center', 'justifyContent': 'flex-start', 'marginBottom': '20px'}),
             
             html.Div(
                 html.Button('Añadir Concepto', id='update-category-button', style={
@@ -111,16 +126,21 @@ layout = html.Div([
     Output('expenses-per-category', 'figure'),
     Output('cumulative-expenses', 'figure'),
     Output('total-expenses-earnings', 'figure'),
+    Output('new-category-input', 'value'),  # Clear the input field after use
     Input('upload-data', 'contents'),
     Input('update-category-button', 'n_clicks'),
     Input('update-global-tracker-button', 'n_clicks'),
     State('upload-data', 'filename'),
     State('category-dropdown', 'value'),
+    State('new-category-input', 'value'),  # Get input field value
     State('none-category-box', 'children')
 )
-def update_tracker(contents, n_clicks_update, n_clicks_global, filename, category, none_category_box):
+def update_tracker(contents, n_clicks_update, n_clicks_global, filename, dropdown_category, input_category, none_category_box):
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Initialize file status
+    file_status = ""
     
     if triggered_id == 'upload-data' and contents is not None:
         content_type, content_string = contents.split(',')
@@ -133,14 +153,25 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
         tracker.load_concept_to_category('concept_to_category.json')
         tracker.fill_from_excel_kutxabank(filename)
         file_status = "Archivo cargado correctamente"
-    elif triggered_id == 'update-category-button' and category is not None:
-        none_category_text_children = none_category_box['props']['children']
-        if none_category_text_children:
-            current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
-            tracker.update_category(current_concept, category)
-            file_status = "Categoria actualizada correctamente"
+    
+    #add concept
+
+    elif triggered_id == 'update-category-button':
+        # Prioritize input category if provided
+        category = input_category if input_category else dropdown_category
+        
+        if category:
+            # Get the current concept from the "none-category-box"
+            none_category_text_children = none_category_box['props']['children']
+            if none_category_text_children:
+                current_concept = none_category_text_children[0]['props']['children'].split(": ")[1]
+                tracker.update_category(current_concept, category)
+                file_status = "Categoría actualizada correctamente"
+            else:
+                file_status = "No hay más conceptos sin categoría"
         else:
-            file_status = "No hay más conceptos sin categoría"
+            file_status = "Por favor, selecciona o ingresa una categoría"
+    
     elif triggered_id == 'update-global-tracker-button':
         tracker_global = FinanceTracker()
         tracker_global.load_tracker('tracker.json')
@@ -148,9 +179,7 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
         tracker_global.save_tracker('tracker.json')
         file_status = "Global tracker actualizado y guardado"
         tracker = FinanceTracker()
-        return "", "", {}, {}, {}
-    else:
-        return "", "", {}, {}, {}
+        return "", "", {}, {}, {}, ""
     
     none_category_df = tracker.data[tracker.data["Categoria"].isna()]
     if none_category_df.empty:
@@ -163,43 +192,18 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
             html.Div(f"Importe: {next_none_category['Importe']}")
         ])
     
+    #plots
+
     if not tracker.data.empty:
+        df = tracker.data
+
         # Category Expenses Plot
-        category_expenses = tracker.get_category_expenses().reset_index()
-        category_expenses['Positive_Total'] = category_expenses['Total'].abs()
-        category_expenses['Color'] = ['rgb(214, 39, 40)' if x < 0 else 'rgb(31, 119, 180)' for x in category_expenses['Total'].values]
-        category_expenses = category_expenses.sort_values(by='Positive_Total', ascending=False)
-        fig_category = px.bar(category_expenses, x='Categoria', y='Positive_Total', color=category_expenses['Total'].apply(lambda x: x < 0), 
-                            color_discrete_map={False: 'rgb(31, 119, 180)', True: 'rgb(214, 39, 40)'}, title='Total por categoría')
-        fig_category.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
-        fig_category.update_layout(barmode='group', showlegend=False, bargap=0, bargroupgap=0.1, title_x=0.5)
-        fig_category.update_yaxes(title='')
-        fig_category.update_xaxes(title='')
+        fig_category, total = plot_category_expenses(df)
 
         # Daily Expenses Change Plot (as Candlestick)
         daily_expenses = tracker.get_daily_expenses().reset_index()
-        daily_expenses['Cumulative'] = daily_expenses['Total'].cumsum()
-        daily_expenses['Daily_Change'] = daily_expenses['Total'].diff().fillna(0)
-        daily_expenses['Open'] = daily_expenses['Cumulative'].shift(1).fillna(0)
-        daily_expenses['Close'] = daily_expenses['Cumulative']
-        daily_expenses['High'] = daily_expenses[['Open', 'Close']].max(axis=1)
-        daily_expenses['Low'] = daily_expenses[['Open', 'Close']].min(axis=1)
-
-        fig_cumulative = go.Figure(data=[go.Candlestick(x=daily_expenses['Fecha'],
-                                                        open=daily_expenses['Open'],
-                                                        high=daily_expenses['High'],
-                                                        low=daily_expenses['Low'],
-                                                        close=daily_expenses['Close'],
-                                                        increasing_line_color='green',
-                                                        increasing_fillcolor='green',
-                                                        decreasing_line_color='red',
-                                                        decreasing_fillcolor='red',
-                                                        opacity=1.0)])
-        fig_cumulative.update_layout(xaxis_rangeslider_visible=False)
-        fig_cumulative.update_layout(title='Cambio Diario', title_x=0.5, showlegend=False)
-        fig_cumulative.update_yaxes(title='')
-        fig_cumulative.update_xaxes(title='Date')
-
+        fig_cumulative = daily_candlestick(daily_expenses)
+        
         # Total Expenses and Earnings Plot
         total_expenses, total_earnings = tracker.get_total_expenses_earnings()
         total_savings = total_earnings + total_expenses
@@ -210,8 +214,7 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
         fig_total.update_traces(hovertemplate='%{x}: %{y:.2f}€<extra></extra>')
         fig_total.update_layout(title=f'Ahorro Total: ${total_savings:.2f}', barmode='group', showlegend=False, title_x=0.5)
         fig_total.update_xaxes(title='Type')
-        fig_total.update_yaxes(title='')
-        fig_total.update_xaxes(title='')
+    
     else:
         fig_category = px.bar(title='Expenses per Category')
         fig_category.update_yaxes(title='')
@@ -219,6 +222,8 @@ def update_tracker(contents, n_clicks_update, n_clicks_global, filename, categor
         fig_cumulative.update_yaxes(title='')
         fig_total = go.Figure()
         fig_total.update_yaxes(title='')
-    
+
     tracker.save_concept_to_category('concept_to_category.json')
-    return file_status, none_category_box, fig_category, fig_cumulative, fig_total
+    
+    # Clear input field after processing
+    return file_status, none_category_box, fig_category, fig_cumulative, fig_total, ""

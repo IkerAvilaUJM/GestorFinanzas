@@ -217,7 +217,6 @@ class FinanceTracker:
         self.data.loc[self.data["Concepto"] == concept, "Categoria"] = str(category)
         # print(category)
 
-
     def get_starting_date(self):
         """
         Returns the first (oldest) date in the DataFrame.
